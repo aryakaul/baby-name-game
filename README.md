@@ -4,7 +4,7 @@ Do you have a friend who is having a baby? Are the friends of that friend intere
 
 You are in luck!
 
-This script first reads all names on Social Security applications from 1980-2022 and generates a co-occurrence matrix for each character. We deem this substitution matrix NAMELY62. 
+This script first reads all names on Social Security applications from 1880-2022 and generates a co-occurrence matrix for each character. We deem this substitution matrix NAMELY62. 
 
 It then calculates the Needleman-Wunsch alignment of each person's guess to the real baby name and computes a score for each guessed name. The winner is outputted at the end!
 
