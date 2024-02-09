@@ -212,7 +212,7 @@ def main():
 
     sorted_guesses = sorted(score_align_dic.items(), key=lambda item: item[1][0], reverse=True)
     for person, (score, align1, align2) in sorted_guesses:
-        logger.info(f"\n{person} guessed {guesser_to_name[person]} with a score of {score}.\n{align1}\n{align2}")
+        logger.info(f"\n\t{person} guessed {guesser_to_name[person]} with a score of {score}.\n\t{align1}\n\t{align2}")
 
     logger.success(f"Winner is {sorted_guesses[0][0]}!")
 
