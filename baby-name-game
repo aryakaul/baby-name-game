@@ -1,0 +1,220 @@
+#!/usr/bin/env python3
+
+import numpy as np
+import sys
+from collections import defaultdict
+import argparse
+from loguru import logger
+
+def read_names(file_path):
+    names = []
+    with open(file_path, 'r') as file:
+        for lines in file:
+            line = lines.rstrip().split(',')
+            name = line[0].lower()
+            names.append(name)
+    return names
+
+def calculate_frequencies(names):
+    frequency = defaultdict(int)
+    co_occurrence = defaultdict(lambda: defaultdict(int))
+
+    for name in names:
+        # Count character frequencies
+        for char in set(name):  # Use set to count each char once per name
+            frequency[char] += 1
+
+        # Count co-occurrences within names
+        for i in range(len(name)):
+            for j in range(i+1, len(name)):
+                co_occurrence[name[i]][name[j]] += 1
+                co_occurrence[name[j]][name[i]] += 1  # Symmetric
+
+    return frequency, co_occurrence
+
+def create_substitution_matrix(frequency, co_occurrence):
+    # Initialize matrix
+    chars = list(frequency.keys())
+    matrix = np.zeros((len(chars), len(chars)))
+    # matrix = np.ones((len(chars), len(chars)))
+
+    for i, char1 in sorted(enumerate(chars)):
+        for j, char2 in sorted(enumerate(chars)):
+            if char1 == char2:
+                # Diagonal values
+                matrix[i, j] = 1
+            else:
+                # Off-diagonal, calculate substitution score
+                score = co_occurrence[char1][char2] / (frequency[char1] * frequency[char2])
+                matrix[i, j] = score
+
+    # Normalize matrix
+    matrix = np.log(matrix + 1)  # Add 1 to avoid log(0)
+
+    return matrix, sorted(chars)
+
+
+def needleman_wunsch(name1_in, name2_in, matrix, chars):
+
+    name1 = name1_in.lower()
+    name2 = name2_in.lower()
+
+    # Initialize score and traceback matrices
+    m, n = len(name1), len(name2)
+    score_matrix = np.zeros((m+1, n+1))
+    traceback_matrix = np.zeros((m+1, n+1), dtype=int)  # 0:stop, 1:diag, 2:up, 3:left
+
+    gap_penalty = -1  # Define your gap penalty
+
+    # Initialize first row and column of the score matrix
+    for i in range(1, m+1):
+        score_matrix[i, 0] = i * gap_penalty
+    for j in range(1, n+1):
+        score_matrix[0, j] = j * gap_penalty
+
+    # Fill in the score and traceback matrices
+    for i in range(1, m+1):
+        for j in range(1, n+1):
+            char1 = name1[i-1]
+            char2 = name2[j-1]
+
+            # Use the substitution matrix for both matches and mismatches
+            char1_index = chars.index(char1)
+            char2_index = chars.index(char2)
+            match_score = matrix[char1_index, char2_index]
+
+            # Calculate scores for possible moves
+            diag_score = score_matrix[i-1, j-1] + match_score
+            up_score = score_matrix[i-1, j] + gap_penalty
+            left_score = score_matrix[i, j-1] + gap_penalty
+
+            # Select the best move
+            max_score = max(diag_score, up_score, left_score)
+            score_matrix[i, j] = max_score
+
+            # Record the traceback path
+            if max_score == diag_score:
+                traceback_matrix[i, j] = 1  # Diagonal
+            elif max_score == up_score:
+                traceback_matrix[i, j] = 2  # Up
+            else:
+                traceback_matrix[i, j] = 3  # Left
+
+    # Backtrack to reconstruct the alignment
+    align1, align2 = "", ""
+    i, j = m, n
+    while i > 0 or j > 0:
+        if traceback_matrix[i, j] == 1:  # Diagonal
+            align1 = name1[i-1] + align1
+            align2 = name2[j-1] + align2
+            i -= 1
+            j -= 1
+        elif traceback_matrix[i, j] == 2:  # Up
+            align1 = name1[i-1] + align1
+            align2 = "-" + align2
+            i -= 1
+        elif traceback_matrix[i, j] == 3:  # Left
+            align1 = "-" + align1
+            align2 = name2[j-1] + align2
+            j -= 1
+        else:  # This case handles leading gaps if one sequence is longer than the other
+            if i > 0:
+                align1 = name1[i-1] + align1
+                align2 = "-" + align2
+                i -= 1
+            if j > 0:
+                align1 = "-" + align1
+                align2 = name2[j-1] + align2
+                j -= 1
+
+    return score_matrix[m, n], align1, align2
+
+def prettify_string(s):
+    # Find the index of the first character that is not "-"
+    for i, char in enumerate(s):
+        if char != "-":
+            # Capitalize the character and return the modified string
+            return s[:i] + char.upper() + s[i+1:]
+    return s  # Return the original string if there are no characters to capitalize
+
+def main():
+    parser = argparse.ArgumentParser(
+        description=
+        "Rank a list of guessed baby names to the one true baby name."
+    )
+
+    parser.add_argument(
+        "-n",
+        "--names",
+        type=str,
+        required=False,
+        default="./allnames.csv",
+        help="Baby names from Social Security Card applications in the US from 1880-2022. Downloaded from: https://catalog.data.gov/dataset/baby-names-from-social-security-card-applications-national-data"
+    )
+    parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase verbosity level."
+    )
+    parser.add_argument(
+        "-r",
+        "--realname",
+        type=str,
+        default="Alice",
+        help="Real name of the baby. Default is Alice"
+    )
+    parser.add_argument(
+        "-f",
+        "--guessednames",
+        type=str,
+        help="CSV file of guessed names. First entry is person who submitted name. Second entry is the guessed name."
+    )
+
+    args = parser.parse_args()
+
+    logger.remove()
+    if args.verbose == 0:
+        logger.add(sys.stderr, level="INFO")
+    elif args.verbose > 0:
+        logger.add(sys.stderr, level="DEBUG")
+
+
+    logger.info("Creating NAMELY62 scoring matrix...")
+    logger.debug("Reading in names...")
+    names = read_names(args.names)
+    logger.debug(f"Read in {len(names)} names")
+
+    logger.debug("Calculating frequencies & co-occurrence of characters")
+    frequency, co_occurrence = calculate_frequencies(names)
+    matrix, chars = create_substitution_matrix(frequency, co_occurrence)
+    logger.debug(f"Matrix: {matrix}")
+    logger.debug(f"Characters: {chars}")
+    logger.info("Created NAMELY62 scoring matrix.")
+
+    logger.info(f"Actual name is {args.realname}")
+
+    guesser_to_name = {}
+    with open(args.guessednames, "r") as f:
+        guessednames = f.readlines()
+        for guesses in guessednames:
+            guesser, guess = guesses.split(',')
+            guesser_to_name[guesser] = guess.strip()
+    logger.debug(f"Guesses: {guesser_to_name}")
+
+    logger.info("Performing Needleman-Wunsch alignment for guessed names...")
+    score_align_dic = {}
+    for guesser in guesser_to_name:
+        score, align1, align2 = needleman_wunsch(args.realname, guesser_to_name[guesser], matrix, chars)
+        logger.debug(f"{score} for {guesser_to_name[guesser]} from {guesser}")
+        score_align_dic[guesser] = (score, prettify_string(align1), prettify_string(align2))
+
+    sorted_guesses = sorted(score_align_dic.items(), key=lambda item: item[1][0], reverse=True)
+    for person, (score, align1, align2) in sorted_guesses:
+        logger.info(f"\n{person} guessed {guesser_to_name[person]} with a score of {score}.\n{align1}\n{align2}")
+
+    logger.success(f"Winner is {sorted_guesses[0][0]}!")
+
+if __name__ == "__main__":
+    main()
