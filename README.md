@@ -28,9 +28,9 @@ optional arguments:
 For example, if the real name is "Alice":
 ```
 $ cat ./guessednames
-Arya,Alice
+Arya,Alicia
 Bob,Tomato
-Billybob,Timothy
+Timothy,Boop
 $ ./baby-name-game -n ./allnames.csv -r Alice -f ./guessednames
 INFO     | __main__:main:184 - Creating NAMELY62 scoring matrix...
 INFO     | __main__:main:194 - Created NAMELY62 scoring matrix.
