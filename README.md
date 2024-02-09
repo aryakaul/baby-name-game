@@ -1,6 +1,6 @@
 # Rank guesses for a baby name!
 
-Do you have a friend who is having a baby? Are the friends of that friend interested in guessing the name of their future child? Are the friends of that friend interested in having a logical alignment-based score to see whose guess was closest to the real baby name?
+Do you have a friend who is having a baby? Are the friends of that friend interested in guessing the name of the future child? Are the friends of that friend interested in having a logical alignment-based score to see whose guess was the closest to the actual baby name?
 
 You are in luck!
 
